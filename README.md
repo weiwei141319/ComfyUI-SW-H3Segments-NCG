@@ -1,0 +1,153 @@
+# ComfyUI-SW-H3Segments-NCFG（无 CFG 对照版）
+
+> **这是 `ComfyUI-SW-H3Segments` 的 A/B 对照分支。**
+> 唯一差异：采样时**彻底删除 CFG 路径**（`negative=None` + `cfg` 固定 1.0），
+> 完全对齐官方 `BasicGuider` 链路。用来和原版做同参数对比。
+
+---
+
+## 一、为什么会有这个版本
+
+原版 `ComfyUI-SW-H3Segments` 虽然默认 `cfg=1.0`，但**保留了 CFG 代码路径**：
+构造一个 `_zero_out(cond)`（空条件）当negative，并把它和 cond 一起丢进
+`comfy.sample.sample()`。一旦你把 cfg 调到 1.0 以下，就会命中
+`samplers.py:598` 的混合公式：
+
+```
+cfg_result = uncond_pred + (cond_pred − uncond_pred) × cfg
+```
+
+代入空条件 `uncond = 0`：
+
+```
+cfg=0.8  →  out = 0 + (cond − 0) × 0.8  =  cond × 0.8
+```
+
+**每一步去噪结果被整体乘到 80%** —— 这不是"引导"，是**信号衰减**。
+在 4 步蒸馏 LoRA 下，模型输出本已偏离原始分布，再乘 0.8 →
+色度向零塌陷→ 低饱和区（皮肤 / 天空 / 草坪）先泛紫。
+
+**本版把这条路彻底删掉**，回到官方做法。
+
+---
+
+## 二、官方是怎么做的
+
+官方 H3 链路用的是 `BasicGuider`：
+
+```python
+# comfy_extras/nodes_custom_sampler.py
+class CFGGuider:
+    def __init__(self, model_patcher):
+        self.cfg = 1.0# ← 恒为 1.0
+
+class Guider_Basic(CFGGuider):
+    def set_conds(self, positive):
+        self.inner_set_conds({"positive": positive})   # ← 只塞 positive
+```
+
+`BasicGuider` 的接口里**根本没有 negative**，`cfg` 也恒为 1.0（没人去 `set_cfg`）。
+所以官方是**纯条件去噪、零CFG**。
+
+本版照此实现，命中 ComfyUI 的官方优化：
+
+```python
+# comfy/samplers.py  sampling_function 第 610 行
+if math.isclose(cond_scale, 1.0) and model_options.get("disable_cfg1_optimization", False) == False:
+    uncond_ = None       # ← 直接丢掉负样本通道
+```
+
+`calc_cond_batch` 里`if cond is not None:` 会跳过 None 通道，
+**每步只前向 cond 一次**。
+
+> 注：官方 H3 节点（`comfy_extras/nodes_minimax_h3.py`）**没有**设
+> `disable_cfg1_optimization`（只有 k_diffusion 采样器内部那条路径会设，而本插件不走那条），
+> 所以这个优化在本地能正常命中。已实测确认。
+
+---
+
+## 三、实测证据
+
+用官方钩子 `sampler_calc_cond_batch_function` 截住 conds 构造结果：
+
+| 语义 | conds[0] | conds[1] | 需前向通道数 |
+|---|---|---|---|
+| 原版 `negative=zero_out(cond)`, cfg=0.8 | conditioning | conditioning | **2** |
+| **本版** `negative=None`, cfg=1.0 | conditioning | `None` | **1** |
+
+→ **前向次数减半，等于省一半采样算力。**
+
+数值上`cfg_function` 拿到 `uncond_pred = 0`（占位零）代入公式：
+
+```
+out = 0 + (cond_pred − 0) × 1.0 = cond_pred
+```
+
+**完全等于 cond 预测，不做任何缩放** —— 画质回到官方基线。
+
+---
+
+## 四、与原版的完整差异
+
+| | 原版 H3Segments | 本版 NCG |
+|---|---|---|
+| `cfg` 输入口 | 有 | **已删除** |
+| negative | `_zero_out(cond)` | **`None`** |
+| 采样 `cond_scale` | 用户传入 | **固定 1.0** |
+| 前向通道数 | 2 | **1** |
+| `scheduler` 默认 | `beta` | `beta`（相同） |
+| 段拼接 / anchor / sigma_shift | 相同 | 相同 |
+
+除了这三点，**其他逻辑与原版逐行相同** —— 这样 A/B 对比才有意义。
+
+###节点类名映射
+
+| 原版 | 本版 |
+|---|---|
+| `SW_H3MultiPrompt` | `SW_H3MultiPrompt_NCG` |
+| `SW_H3Ultra` | `SW_H3Ultra_NCG` |
+| `SW_H3_SegPlan` | `SW_H3_SegPlan_NCG` |
+| `SW_H3_SegBridge` | `SW_H3_SegBridge_NCG` |
+| `SW_H3_SegConcat` | `SW_H3_SegConcat_NCG` |
+
+> 两套插件**可以同时安装**（类名不冲突），节点显示名带`【无CFG·NCG】` 标识，
+> 方便在搜索面板区分。
+
+---
+
+## 五、安装
+
+```bash
+cd ComfyUI/custom_nodes
+git clone <this-repo-url> ComfyUI-SW-H3Segments-NCFG
+```
+
+重启 ComfyUI，节点搜索 `NCG` 即可看到。
+
+---
+
+## 六、A/B 怎么比
+
+想公平对比，两个节点用**完全相同**的：
+
+- 参考图 / 参考视频 / 参考音频
+- 各段提示词、`segment_seconds`、`anchor_frames`
+- `width` / `height`（分辨率）
+- `seed` / `递增种子`（**务必固定种子**，否则噪声不同没法比）
+- `steps` / `sampler_name` / `scheduler`（都设 `euler` / `beta`）
+- `内置sigma_shift` / `shift_video` / `shift_audio`
+- `内部解码` / `裁剪到秒数`
+
+差异只有一处：**原版走 CFG 路径，本版不走**。
+
+预期观察点：
+
+1. **耗时**：本版应快接近一倍（采样阶段）
+2. **画面**：本版不会有 `cond×0.8` 的整体衰减，色彩应更饱满
+3. **泛紫**：若两者都不紫，说明 `beta` 已经是主因（已验证）；若原版仍紫、本版不紫，则 CFG 路径是叠加因素
+
+---
+
+## 七、许可证
+
+保留所有权利。未经作者书面许可，不得复制、分发或用于商业用途。
