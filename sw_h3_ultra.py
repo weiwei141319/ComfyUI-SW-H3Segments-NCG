@@ -102,6 +102,8 @@ import node_helpers
 from comfy.ldm.minimax.model import FRAME_PER_TOKEN, FRAME_RESCALE
 from comfy_api.latest import io
 
+from .sw_h3_basic_sample import basic_sample as _basic_sample
+
 logger = logging.getLogger(__name__)
 
 SW_H3_ULTRA_VERSION = "v1.0-20261004"
@@ -894,9 +896,11 @@ class SW_H3Ultra_NCG(io.ComfyNode):
                     cond, {"minimax_keyframes": [kf]})
 
             # ================= 无 CFG 路径（NCG 版核心） =================
-            # 照官方 BasicGuider：negative=None + cfg 固定 1.0。
-            # samplers.py:610 命中 isclose(1.0) → uncond_=None → 只前向 cond，省一半算力。
-            negative = None
+            # 照官方 BasicGuider（comfy_extras/nodes_custom_sampler.py:797）：
+            # original_conds 里只有 "positive"，没有 "negative" 键。
+            # ★ 不能用 comfy.sample.sample —— 它硬编码 CFGGuider，
+            #   negative=None 会在 cond_has_hooks 的 `for c in cond` 处 TypeError。
+            # 详见 sw_h3_basic_sample.py 的模块 docstring。
             noise = comfy.sample.prepare_noise(latent["samples"], seg_seed)
 
             def _cb(p, x0, x, total, noisy_samples=None, _done=done):
@@ -914,9 +918,9 @@ class SW_H3Ultra_NCG(io.ComfyNode):
                 print("[SW-H3Ultra] CLIP 编码器已卸载（%s）"
                       % ("全部模型" if how == -1 else "%d 个模型对象" % how), flush=True)
 
-            sampled = comfy.sample.sample(
-                model, noise, steps_i, 1.0, sampler_name, scheduler,
-                cond, negative, latent["samples"],
+            sampled = _basic_sample(
+                model, noise, steps_i, sampler_name, scheduler,
+                cond, latent["samples"],
                 denoise=denoise_f, disable_noise=False, callback=_cb, seed=seg_seed)
 
             video, audio = _av_parts({"samples": sampled})

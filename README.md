@@ -93,12 +93,55 @@ out = 0 + (cond_pred − 0) × 1.0 = cond_pred
 |---|---|---|
 | `cfg` 输入口 | 有 | **已删除** |
 | negative | `_zero_out(cond)` | **`None`** |
+| 采样入口 | `comfy.sample.sample()` | **`sw_h3_basic_sample.basic_sample()`** |
 | 采样 `cond_scale` | 用户传入 | **固定 1.0** |
 | 前向通道数 | 2 | **1** |
 | `scheduler` 默认 | `beta` | `beta`（相同） |
 | 段拼接 / anchor / sigma_shift | 相同 | 相同 |
 
-除了这三点，**其他逻辑与原版逐行相同** —— 这样 A/B 对比才有意义。
+除了这几点，**其他逻辑与原版逐行相同** —— 这样 A/B 对比才有意义。
+
+### ★★ 关键：为什么不能直接 `comfy.sample.sample(negative=None, cfg=1.0)`
+
+这是本版踩过的**真坑**（线上 `TypeError: 'NoneType' object is not iterable`）。
+`comfy/sample.py:sample()` 内部构造的是**硬编码的 CFGGuider**：
+
+```python
+# comfy/sample.py:78
+sampler = comfy.samplers.KSampler(...)
+return sampler.sample(noise, positive, negative, cfg=cfg, ...)   # ← negative 照样往下传
+
+# comfy/samplers.py:1449
+cfg_guider = CFGGuider(model)
+cfg_guider.set_conds(positive, negative)          # ← 无条件塞 negative
+
+# comfy/samplers.py:1195
+def set_conds(self, positive, negative):
+    self.inner_set_conds({"positive": positive, "negative": negative})
+
+# comfy/samplers.py:1203 → comfy/sampler_helpers.py:72
+if self.model_patcher.is_dynamic() and cond_has_hooks(conds[k]):
+                                                  # ↑ cond=None → `for c in cond` → TypeError
+```
+
+**cfg=1.0 也救不了**：因为它崩在 `set_conds` 的条件转换里，还没走到 cfg 计算。
+
+官方 H3 链路压根不调 `comfy.sample.sample`，它走
+`Guider_Basic`（`comfy_extras/nodes_custom_sampler.py:797`）：
+
+```python
+class Guider_Basic(comfy.samplers.CFGGuider):
+    def set_conds(self, positive):                  # ← 签名里根本没有 negative
+        self.inner_set_conds({"positive": positive})
+```
+
+`original_conds` 因此**没有 `"negative"` 这个键**，
+`predict_noise` 遍历 `original_conds` 构造 conds 列表时只有1 路。
+
+本版的 `sw_h3_basic_sample.py` 就是复刻 `comfy/sample.py:sample()` 的全部逻辑
+（KSampler 建 sigmas → guider.sample → intermediate_device cast），
+**唯一区别是把 CFGGuider 换成 Guider_Basic**。取不到官方类时本地fallback 一份。
+
 
 ###节点类名映射
 

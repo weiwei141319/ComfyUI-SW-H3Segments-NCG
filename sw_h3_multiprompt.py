@@ -100,6 +100,8 @@ import node_helpers
 from comfy.ldm.minimax.model import FRAME_PER_TOKEN, FRAME_RESCALE
 from comfy_api.latest import io
 
+from .sw_h3_basic_sample import basic_sample as _basic_sample
+
 logger = logging.getLogger(__name__)
 
 # --------------------------------------------------------------------------- #
@@ -775,13 +777,16 @@ class SW_H3MultiPrompt_NCG(io.ComfyNode):
 
             # ================= 无 CFG 路径（NCG 版核心） =================
             # 官方 BasicGuider 只接 model + conditioning，结构上不可能有 negative，
-            # 其 cfg 恒为 1.0（comfy_extras/nodes_custom_sampler.py 的 Guider_Basic）。
-            # 这里照官方做法：negative 传 None + cfg 固定 1.0。
-            # → samplers.py:610 `math.isclose(cond_scale, 1.0)` 命中，
-            #   uncond_ 直接置None，calc_cond_batch 过滤掉它，
+            # 其 cfg 恒为 1.0（comfy_extras/nodes_custom_sampler.py:797 Guider_Basic）。
+            # 所以本节点**不能**调 comfy.sample.sample —— 它内部硬编码 CFGGuider
+            #   （comfy/samplers.py:1449 cfg_guider.set_conds(positive, negative)），
+            #   negative 传None 会在 sampler_helpers.cond_has_hooks 里
+            #   `for c in cond` 直接 TypeError: 'NoneType' object is not iterable。
+            # 改走 _basic_sample()：复刻 comfy/sample.py:sample() 的全部逻辑，
+            #   只把 CFGGuider 换成 Guider_Basic（original_conds 里没有 "negative" 键）。
+            # → samplers.py 的 math.isclose(cond_scale, 1.0) 命中，
+            #   uncond_ 直接置 None，calc_cond_batch 过滤掉它，
             #   **每步只前向 cond 一次，等于省一半算力**，且不做任何信号缩放。
-            negative = None
-
             latent, frames_this = _empty_av_latent(width, height, seg_frames_list[i])
             noise = comfy.sample.prepare_noise(latent["samples"], seg_seed)
 
@@ -790,9 +795,9 @@ class SW_H3MultiPrompt_NCG(io.ComfyNode):
                 comfy.model_management.throw_exception_if_processing_interrupted()
                 return None
 
-            sampled = comfy.sample.sample(
-                model, noise, steps_i, 1.0, sampler_name, scheduler,
-                cond, negative, latent["samples"],
+            sampled = _basic_sample(
+                model, noise, steps_i, sampler_name, scheduler,
+                cond, latent["samples"],
                 denoise=denoise_f, disable_noise=False,
                 callback=_cb, seed=seg_seed)
 
