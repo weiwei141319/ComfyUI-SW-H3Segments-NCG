@@ -423,7 +423,7 @@ class SW_H3MultiPrompt_NCG(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SW_H3MultiPrompt_NCG",
-            display_name="SW H3 多段提示词一体机",
+            display_name="SW H3 多段一体机【无CFG·NCG】",
             category="SW/H3Segments",
             description=(
                 "一个节点搞定 15 秒以上长视频。5 个提示词口，填几个跑几段（最低 3 段）。"

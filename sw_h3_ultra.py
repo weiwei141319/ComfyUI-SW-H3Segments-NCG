@@ -492,10 +492,14 @@ def _resample_audio(audio, target_sr: int):
 def _relay_pixel(vae, tail_tokens):
     """把上段末端 latent 解回像素，给 Qwen 视觉塔用（仅接力=full 时走）。
 
-    入参是 2 个 latent token（5 帧）；单 token 过 H3 VAE 的时间卷积缺上下文，
-    取一小段更稳。失败返回 None，调用方自动降级为纯 latent 接力。
+    入参是上段末端的 latent token 切片 [B,C,T,H/16,W/16]；
+    单 token 过 H3 VAE 的时间卷积缺上下文，取最后 2 个 token 更稳。
+    失败返回 None，调用方自动降级为纯 latent 接力。
     """
-    tail_tokens = video_latent[:, :, -2:, :, :]
+    # ★ 不要用未定义的 video_latent（原版这里的遮蔽行是 bug，会直接 NameError）。
+    #   入参本身已经是 relay_history 里切好的末端片段，再从尾部取 2 个 token 即可。
+    if tail_tokens.shape[2] > 2:
+        tail_tokens = tail_tokens[:, :, -2:, :, :]
     try:
         pix = vae.decode(tail_tokens)
     except Exception as exc:  # pragma: no cover - 依赖真实权重
@@ -571,7 +575,7 @@ class SW_H3Ultra_NCG(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SW_H3Ultra_NCG",
-            display_name="SW 海螺H3长视频超级进化版",
+            display_name="SW 海螺H3长视频超级进化版【无CFG·NCG】",
             category="SW/H3Segments",
             description=(
                 "一个节点干完：帧数规划 → 参考资产编码 → 逐段编译条件 → 逐段采样"

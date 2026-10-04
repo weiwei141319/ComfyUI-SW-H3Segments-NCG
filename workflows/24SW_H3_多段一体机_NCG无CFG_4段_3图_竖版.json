@@ -1,0 +1,1365 @@
+{
+  "last_node_id": 103,
+  "last_link_id": 17,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "UNETLoader",
+      "title": "UNETLoader",
+      "pos": [
+        40,
+        60
+      ],
+      "size": [
+        320,
+        100
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "unet_name",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "unet_name"
+          }
+        },
+        {
+          "name": "weight_dtype",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "weight_dtype"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            5
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UNETLoader"
+      },
+      "widgets_values": [
+        "minimax_h3_ref2va_int8_convrot.safetensors",
+        "default"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "LoraLoaderModelOnly",
+      "title": "LoRA（加速）",
+      "pos": [
+        400,
+        60
+      ],
+      "size": [
+        340,
+        110
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 5,
+          "widget": null
+        },
+        {
+          "name": "lora_name",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "lora_name"
+          }
+        },
+        {
+          "name": "strength_model",
+          "type": "FLOAT",
+          "link": null,
+          "widget": {
+            "name": "strength_model"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            6
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoraLoaderModelOnly"
+      },
+      "widgets_values": [
+        "minimax_h3_fl2v_turbo_4step_v0.1_comfyui_alpha8-T8-convert.safetensors",
+        1.0
+      ]
+    },
+    {
+      "id": 3,
+      "type": "MiniMaxH3MemoryEfficientSageAttentionPatch",
+      "title": "省显存注意力",
+      "pos": [
+        780,
+        60
+      ],
+      "size": [
+        280,
+        60
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 6,
+          "widget": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            7
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3MemoryEfficientSageAttentionPatch"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 4,
+      "type": "CLIPLoader",
+      "title": "CLIPLoader（Qwen3-VL，节点内会自动卸载）",
+      "pos": [
+        40,
+        220
+      ],
+      "size": [
+        340,
+        110
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip_name",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "clip_name"
+          }
+        },
+        {
+          "name": "type",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "type"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            8
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPLoader"
+      },
+      "widgets_values": [
+        "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+        "minimax"
+      ]
+    },
+    {
+      "id": 5,
+      "type": "VAELoader",
+      "title": "VAELoader（H3 video VAE）",
+      "pos": [
+        40,
+        380
+      ],
+      "size": [
+        340,
+        80
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "vae_name",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "vae_name"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            9
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "minimax_h3_video_vae_fp16.safetensors"
+      ]
+    },
+    {
+      "id": 25,
+      "type": "VAELoader",
+      "title": "VAELoader（H3 audio VAE）",
+      "pos": [
+        40,
+        500
+      ],
+      "size": [
+        340,
+        80
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "vae_name",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "vae_name"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            10
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "minimax_h3_audio_vae_fp32.safetensors"
+      ]
+    },
+    {
+      "id": 101,
+      "type": "LoadImage",
+      "title": "图1 人物A全身正视（蓝白条纹开衫）",
+      "pos": [
+        1100,
+        60
+      ],
+      "size": [
+        300,
+        320
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "image"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            11
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "jimeng-2026-10-03-3052-请参考图片出一张人物的全身正视图.png"
+      ]
+    },
+    {
+      "id": 102,
+      "type": "LoadImage",
+      "title": "图2 人物B全身正视（黄鸭舌帽白T）",
+      "pos": [
+        1100,
+        440
+      ],
+      "size": [
+        300,
+        320
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "image"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            12
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "jimeng-2026-10-03-2338-参考图片，生成一张女孩正面的全身照，背景白色.png"
+      ]
+    },
+    {
+      "id": 103,
+      "type": "LoadImage",
+      "title": "图3 操场足球场背景（纯场景，无人物）",
+      "pos": [
+        1100,
+        820
+      ],
+      "size": [
+        300,
+        320
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "image"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            13
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "jimeng-2026-10-02-5554-请做一个学校操场的的足球场背景，纯背景.png"
+      ]
+    },
+    {
+      "id": 20,
+      "type": "PrimitiveNode",
+      "title": "第 1 段提示词（外接纯文本）",
+      "pos": [
+        1100,
+        2010
+      ],
+      "size": [
+        300,
+        100
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "value",
+          "type": "*",
+          "links": [
+            14
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PrimitiveNode"
+      },
+      "widgets_values": [
+        "subject_definitions:\n  <Subject 1> is Lin Lin, the young woman shown in <Picture 1>: long dark brown hair with wispy bangs and loose side strands, large clear dark eyes, soft pink lips, a small mole near her lower left cheek. She wears a navy blue and cream striped knit cardigan with dark buttons over a crisp white collared shirt, a navy bow tie with thin gold diagonal stripes, high-waisted dark navy shorts, white ankle socks and black leather loafers. Slim tall figure, standing straight facing the camera.\n  <Subject 2> is Su Su, the young woman shown in <Picture 2>: long dark brown hair with airy bangs, warm bright eyes with a gentle smile, a small rounded face. She wears a mustard yellow baseball cap, a plain white short-sleeved t-shirt, black denim high-waisted shorts, white ankle socks and black low-top canvas sneakers with white laces. Slim figure, standing straight facing the camera.\n  <Picture 3> is the empty school football field background reference: a green artificial grass football pitch with crisp white line markings forming a penalty arc across the foreground, a white football goal in the middle distance, a red synthetic running track along the far side, red brick and white school buildings with a clear blue sky above, soft warm afternoon sunlight. No lettering, no logos, no other people, no vehicles.\n\nsummary: On the school football field in late afternoon, <Subject 1> (Lin Lin) leans toward <Subject 2> (Su Su) and tells her she has noticed a good-looking boy. Su Su turns to her with a curious expression and asks which class he is in.\n\nretention_analysis: Retain <Subject 1> Lin Lin's exact identity from <Picture 1> at every frame: her long dark brown hair with wispy bangs and loose side strands, large clear dark eyes, soft pink lips, the small mole near her lower left cheek, the navy and cream striped knit cardigan with dark buttons, the white collared shirt, the navy bow tie with thin gold diagonal stripes, dark navy shorts, white ankle socks and black leather loafers. Retain <Subject 2> Su Su's exact identity from <Picture 2> at every frame: her long dark brown hair with airy bangs, the mustard yellow baseball cap, plain white t-shirt, black denim shorts, white ankle socks and black canvas sneakers with white laces. Retain the <Picture 3> football field exactly: the green grass, white line markings, white goal, red running track, red brick school buildings and clear blue sky. Keep both women in the same clothing from the first frame to the last frame, with no costume change, no added garments and no removed garments. Keep the camera at a consistent medium shot / medium close-up two-shot; do not widen to a full-body long shot and do not push in to a face-only close-up.\n\ndetailed_description:\n  Styled in a bright photoreal cinematic 3D look with warm late-afternoon sunlight, soft golden rim light on the hair, clean natural skin shading and shallow depth of field. Aspect ratio 9:16 vertical, 24fps, smooth natural motion. Vertical composition: keep the upper third of the frame for the sky and school buildings, place both women in the middle and lower two-thirds of the frame at medium-shot distance so their heads and torsos are clearly readable but never fill the whole frame. ★ Medium-shot rule: at medium-shot distance the camera must show the women in PROFILE or three-quarter-back view — the face read from the side (cheek, jawline, ear, lips in side view), never a straight-on frontal face turned into the lens. The only alternative at medium distance is a background-only frame: the empty green pitch, white line markings, white goal, red running track and red brick school buildings, with the women out of frame or reduced to a small silhouette at the frame edge. Keep every medium shot either a side/profile view of a woman or a clean background frame.\n  [Shot] 00:00.000-00:06.000 Medium two-shot, eye level, <Subject 1> Lin Lin on the left third and <Subject 2> Su Su on the right third of the frame, both turned toward each other in profile to the lens, their faces read in side view with the cheek, jawline and lips clearly visible, never turned straight into the camera. The green field, white goal and red running track are softly blurred behind them.\n  Lin Lin leans slightly toward Su Su, one hand raised to chest level with a playful, conspiratorial gesture, eyes bright and a soft smile on her lips. Her mouth moves in sync with the line \"跟你说个事，我最近发现一个男生挺好看的\" — lips opening and closing naturally, cheeks lifting, subtle head nods on key words.\n  Su Su turns her head toward Lin Lin, eyebrows raised and eyes widening in curiosity, lips parting into an \"哦？\" shape, then forming the question \"哪个班的呀？\" with a light, inquisitive tilt of the head. Her cap catches the warm sunlight.\n  The camera holds steady with only faint handheld breathing; no sudden zoom, no cut, no camera movement. Both women remain fully in frame at a stable medium-shot size throughout.\n\noverall_soundscape: Light wind moving across the open field, faint shoe soles scuffing on the grass, a distant flock of birds. Clear Mandarin Chinese dialogue between the two women. No shouting, no other voices.\n\nnegative_prompt: shot change, cut-away, insert shot, wide shot, full shot, long shot, establishing shot, extreme close-up, face-only close-up, giant face filling the frame, oversized head, head-and-shoulders filling the whole frame, the field appearing without the women, either woman small and distant in frame, either woman missing from the frame, costume change, changed outfit, added garment, removed garment, different hairstyle, short hair, different face, face swap, third person, crowd, other students, watermark, logo, distorted hands, extra fingers, extra limbs, cartoon, anime, painting, straight-on frontal face at medium shot, head-on front view filling the frame, face turned directly into the lens at medium distance, both women facing the camera frontally, oversaturated, heavy vignette, camera shake, sudden zoom, whip pan, motion blur smear, full rear view of either woman, back of head with the face completely hidden, silent lips, frozen expression"
+      ]
+    },
+    {
+      "id": 21,
+      "type": "PrimitiveNode",
+      "title": "第 2 段提示词（外接纯文本）",
+      "pos": [
+        1100,
+        2150
+      ],
+      "size": [
+        300,
+        100
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "value",
+          "type": "*",
+          "links": [
+            15
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PrimitiveNode"
+      },
+      "widgets_values": [
+        "subject_definitions:\n  <Subject 1> is Lin Lin, the young woman shown in <Picture 1>: long dark brown hair with wispy bangs and loose side strands, large clear dark eyes, soft pink lips, a small mole near her lower left cheek. She wears a navy blue and cream striped knit cardigan with dark buttons over a crisp white collared shirt, a navy bow tie with thin gold diagonal stripes, high-waisted dark navy shorts, white ankle socks and black leather loafers. Slim tall figure, standing straight facing the camera.\n  <Subject 2> is Su Su, the young woman shown in <Picture 2>: long dark brown hair with airy bangs, warm bright eyes with a gentle smile, a small rounded face. She wears a mustard yellow baseball cap, a plain white short-sleeved t-shirt, black denim high-waisted shorts, white ankle socks and black low-top canvas sneakers with white laces. Slim figure, standing straight facing the camera.\n  <Picture 3> is the empty school football field background reference: a green artificial grass football pitch with crisp white line markings forming a penalty arc across the foreground, a white football goal in the middle distance, a red synthetic running track along the far side, red brick and white school buildings with a clear blue sky above, soft warm afternoon sunlight. No lettering, no logos, no other people, no vehicles.\n\nsummary: Lin Lin explains that the boy is from Class 3 and was standing next to them during the last PE class. Su Su narrows her eyes, trying to recall, and asks if he is the tall one.\n\nretention_analysis: Retain <Subject 1> Lin Lin's exact identity from <Picture 1> at every frame: her long dark brown hair with wispy bangs and loose side strands, large clear dark eyes, soft pink lips, the small mole near her lower left cheek, the navy and cream striped knit cardigan with dark buttons, the white collared shirt, the navy bow tie with thin gold diagonal stripes, dark navy shorts, white ankle socks and black leather loafers. Retain <Subject 2> Su Su's exact identity from <Picture 2> at every frame: her long dark brown hair with airy bangs, the mustard yellow baseball cap, plain white t-shirt, black denim shorts, white ankle socks and black canvas sneakers with white laces. Retain the <Picture 3> football field exactly: the green grass, white line markings, white goal, red running track, red brick school buildings and clear blue sky. Keep both women in the same clothing from the first frame to the last frame, with no costume change, no added garments and no removed garments. Keep the camera at a consistent medium shot / medium close-up; do not widen to a full-body long shot and do not push in to a face-only close-up.\n\ndetailed_description:\n  Styled in a bright photoreal cinematic 3D look with warm late-afternoon sunlight, soft golden rim light on the hair, clean natural skin shading and shallow depth of field. Aspect ratio 9:16 vertical, 24fps, smooth natural motion. Vertical composition: keep the upper third of the frame for the sky and school buildings, place the speaking woman in the middle and lower two-thirds of the frame at medium-shot distance so her head and torso are clearly readable but never fill the whole frame. ★ Medium-shot rule: at medium-shot distance the camera must show the woman in PROFILE or three-quarter-back view — the face read from the side (cheek, jawline, ear, lips in side view), never a straight-on frontal face turned into the lens. The only alternative at medium distance is a background-only frame: the empty green pitch, white line markings, white goal, red running track and red brick school buildings, with the women out of frame or reduced to a small silhouette at the frame edge. Keep every medium shot either a side/profile view of a woman or a clean background frame..\n  [Shot] 00:06.000-00:14.000 Medium shot, eye level. The framing begins on <Subject 1> Lin Lin on the left of the frame, turned three-quarter AWAY from the lens, shown in profile / three-quarter-back view so the camera reads her face from the side rather than head-on, the green field and white goal softly blurred behind her.\n  Lin Lin raises her right hand and points gently toward the middle-distance field as she speaks, mouth moving naturally with \"三班的，上次体育课就站在我们旁边\". Her expression is casual and certain, with small nods on \"旁边\". Her hand lowers slowly after the gesture.\n  The camera then shifts focus to <Subject 2> Su Su on the right of the frame, turned three-quarter toward the left. She squints slightly, lips pressed then parting as she says \"我好像有点印象\" while nodding once. Her eyebrows lift and she tilts her head as she continues \"个子很高对吧？\", mouth shaping the words clearly, eyes looking past Lin Lin toward the field as if searching her memory.\n  The camera holds steady with only faint handheld breathing; no sudden zoom, no cut. Both women remain fully in frame at a stable medium-shot size.\n\noverall_soundscape: Light wind moving across the open field, faint shoe soles scuffing on the grass, a distant flock of birds. Clear Mandarin Chinese dialogue between the two women. No shouting, no other voices.\n\nnegative_prompt: shot change, cut-away, insert shot, wide shot, full shot, long shot, establishing shot, extreme close-up, face-only close-up, giant face filling the frame, oversized head, head-and-shoulders filling the whole frame, the field appearing without the women, either woman small and distant in frame, either woman missing from the frame, costume change, changed outfit, added garment, removed garment, different hairstyle, short hair, different face, face swap, third person, crowd, other students, watermark, logo, distorted hands, extra fingers, extra limbs, cartoon, anime, painting, straight-on frontal face at medium shot, head-on front view filling the frame, face turned directly into the lens at medium distance, both women facing the camera frontally, oversaturated, heavy vignette, camera shake, sudden zoom, whip pan, motion blur smear, full rear view of either woman, back of head with the face completely hidden, silent lips, frozen expression"
+      ]
+    },
+    {
+      "id": 22,
+      "type": "PrimitiveNode",
+      "title": "第 3 段提示词（外接纯文本）",
+      "pos": [
+        1100,
+        2290
+      ],
+      "size": [
+        300,
+        100
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "value",
+          "type": "*",
+          "links": [
+            16
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PrimitiveNode"
+      },
+      "widgets_values": [
+        "subject_definitions:\n  <Subject 1> is Lin Lin, the young woman shown in <Picture 1>: long dark brown hair with wispy bangs and loose side strands, large clear dark eyes, soft pink lips, a small mole near her lower left cheek. She wears a navy blue and cream striped knit cardigan with dark buttons over a crisp white collared shirt, a navy bow tie with thin gold diagonal stripes, high-waisted dark navy shorts, white ankle socks and black leather loafers. Slim tall figure, standing straight facing the camera.\n  <Subject 2> is Su Su, the young woman shown in <Picture 2>: long dark brown hair with airy bangs, warm bright eyes with a gentle smile, a small rounded face. She wears a mustard yellow baseball cap, a plain white short-sleeved t-shirt, black denim high-waisted shorts, white ankle socks and black low-top canvas sneakers with white laces. Slim figure, standing straight facing the camera.\n  <Picture 3> is the empty school football field background reference: a green artificial grass football pitch with crisp white line markings forming a penalty arc across the foreground, a white football goal in the middle distance, a red synthetic running track along the far side, red brick and white school buildings with a clear blue sky above, soft warm afternoon sunlight. No lettering, no logos, no other people, no vehicles.\n\nsummary: Lin Lin confirms that the boy has a gentle personality. Su Su reacts with surprise and says that is rare.\n\nretention_analysis: Retain <Subject 1> Lin Lin's exact identity from <Picture 1> at every frame: her long dark brown hair with wispy bangs and loose side strands, large clear dark eyes, soft pink lips, the small mole near her lower left cheek, the navy and cream striped knit cardigan with dark buttons, the white collared shirt, the navy bow tie with thin gold diagonal stripes, dark navy shorts, white ankle socks and black leather loafers. Retain <Subject 2> Su Su's exact identity from <Picture 2> at every frame: her long dark brown hair with airy bangs, the mustard yellow baseball cap, plain white t-shirt, black denim shorts, white ankle socks and black canvas sneakers with white laces. Retain the <Picture 3> football field exactly: the green grass, white line markings, white goal, red running track, red brick school buildings and clear blue sky. Keep both women in the same clothing from the first frame to the last frame, with no costume change, no added garments and no removed garments. Keep the camera at a consistent medium shot / medium close-up two-shot; do not widen to a full-body long shot and do not push in to a face-only close-up.\n\ndetailed_description:\n  Styled in a bright photoreal cinematic 3D look with warm late-afternoon sunlight, soft golden rim light on the hair, clean natural skin shading and shallow depth of field. Aspect ratio 9:16 vertical, 24fps, smooth natural motion. Vertical composition: keep the upper third of the frame for the sky and school buildings, place both women in the middle and lower two-thirds of the frame at medium-shot distance so their heads and torsos are clearly readable but never fill the whole frame. ★ Medium-shot rule: at medium-shot distance the camera must show the women in PROFILE or three-quarter-back view — the face read from the side (cheek, jawline, ear, lips in side view), never a straight-on frontal face turned into the lens. The only alternative at medium distance is a background-only frame: the empty green pitch, white line markings, white goal, red running track and red brick school buildings, with the women out of frame or reduced to a small silhouette at the frame edge. Keep every medium shot either a side/profile view of a woman or a clean background frame.\n  [Shot] 00:14.000-00:20.000 Medium two-shot, eye level, <Subject 1> Lin Lin on the left and <Subject 2> Su Su on the right, both turned toward each other in profile to the lens, faces read in side view, never straight into the camera. The green field, white goal and red running track are softly blurred behind them.\n  Lin Lin smiles warmly and nods while saying \"对，性格也挺温和的\". Her lips shape each word naturally, her eyes relaxed and friendly, one hand resting by her side.\n  Su Su's eyes widen and her mouth opens into a surprised \"哇\" shape. She brings both hands up near her chin in a light, delighted gesture as she says \"那还挺难得\", her expression bright and amused. Her cap catches the warm sunlight.\n  The camera holds steady with only faint handheld breathing; no sudden zoom, no cut. Both women remain fully in frame at a stable medium-shot size throughout.\n\noverall_soundscape: Light wind moving across the open field, faint shoe soles scuffing on the grass, a distant flock of birds. Clear Mandarin Chinese dialogue between the two women. No shouting, no other voices.\n\nnegative_prompt: shot change, cut-away, insert shot, wide shot, full shot, long shot, establishing shot, extreme close-up, face-only close-up, giant face filling the frame, oversized head, head-and-shoulders filling the whole frame, the field appearing without the women, either woman small and distant in frame, either woman missing from the frame, costume change, changed outfit, added garment, removed garment, different hairstyle, short hair, different face, face swap, third person, crowd, other students, watermark, logo, distorted hands, extra fingers, extra limbs, cartoon, anime, painting, straight-on frontal face at medium shot, head-on front view filling the frame, face turned directly into the lens at medium distance, both women facing the camera frontally, oversaturated, heavy vignette, camera shake, sudden zoom, whip pan, motion blur smear, full rear view of either woman, back of head with the face completely hidden, silent lips, frozen expression"
+      ]
+    },
+    {
+      "id": 23,
+      "type": "PrimitiveNode",
+      "title": "第 4 段提示词（外接纯文本）",
+      "pos": [
+        1100,
+        2430
+      ],
+      "size": [
+        300,
+        100
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "value",
+          "type": "*",
+          "links": [
+            17
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PrimitiveNode"
+      },
+      "widgets_values": [
+        "subject_definitions:\n  <Subject 1> is Lin Lin, the young woman shown in <Picture 1>: long dark brown hair with wispy bangs and loose side strands, large clear dark eyes, soft pink lips, a small mole near her lower left cheek. She wears a navy blue and cream striped knit cardigan with dark buttons over a crisp white collared shirt, a navy bow tie with thin gold diagonal stripes, high-waisted dark navy shorts, white ankle socks and black leather loafers. Slim tall figure, standing straight facing the camera.\n  <Subject 2> is Su Su, the young woman shown in <Picture 2>: long dark brown hair with airy bangs, warm bright eyes with a gentle smile, a small rounded face. She wears a mustard yellow baseball cap, a plain white short-sleeved t-shirt, black denim high-waisted shorts, white ankle socks and black low-top canvas sneakers with white laces. Slim figure, standing straight facing the camera.\n  <Picture 3> is the empty school football field background reference: a green artificial grass football pitch with crisp white line markings forming a penalty arc across the foreground, a white football goal in the middle distance, a red synthetic running track along the far side, red brick and white school buildings with a clear blue sky above, soft warm afternoon sunlight. No lettering, no logos, no other people, no vehicles.\n\nsummary: Lin Lin smiles and says she will point the boy out to Su Su next time there is a chance. She turns slightly and gestures toward the field.\n\nretention_analysis: Retain <Subject 1> Lin Lin's exact identity from <Picture 1> at every frame: her long dark brown hair with wispy bangs and loose side strands, large clear dark eyes, soft pink lips, the small mole near her lower left cheek, the navy and cream striped knit cardigan with dark buttons, the white collared shirt, the navy bow tie with thin gold diagonal stripes, dark navy shorts, white ankle socks and black leather loafers. Retain <Subject 2> Su Su's exact identity from <Picture 2> at every frame: her long dark brown hair with airy bangs, the mustard yellow baseball cap, plain white t-shirt, black denim shorts, white ankle socks and black canvas sneakers with white laces. Retain the <Picture 3> football field exactly: the green grass, white line markings, white goal, red running track, red brick school buildings and clear blue sky. Keep both women in the same clothing from the first frame to the last frame, with no costume change, no added garments and no removed garments. Keep the camera at a consistent medium shot / medium close-up; do not widen to a full-body long shot and do not push in to a face-only close-up.\n\ndetailed_description:\n  Styled in a bright photoreal cinematic 3D look with warm late-afternoon sunlight, soft golden rim light on the hair, clean natural skin shading and shallow depth of field. Aspect ratio 9:16 vertical, 24fps, smooth natural motion. Vertical composition: keep the upper third of the frame for the sky and school buildings, place the speaking woman in the middle and lower two-thirds of the frame at medium-shot distance so her head and torso are clearly readable but never fill the whole frame. ★ Medium-shot rule: at medium-shot distance the camera must show the woman in PROFILE or three-quarter-back view — the face read from the side (cheek, jawline, ear, lips in side view), never a straight-on frontal face turned into the lens. The only alternative at medium distance is a background-only frame: the empty green pitch, white line markings, white goal, red running track and red brick school buildings, with the women out of frame or reduced to a small silhouette at the frame edge. Keep every medium shot either a side/profile view of a woman or a clean background frame..\n  [Shot] 00:20.000-00:25.000 Medium shot, eye level, <Subject 1> Lin Lin slightly left of centre, turned three-quarter AWAY from the lens, shown in profile / three-quarter-back view so the camera reads her face from the side rather than head-on with the green field and white goal softly blurred behind her. <Subject 2> Su Su remains visible on the right edge of the frame, turned toward Lin Lin and listening.\n  Lin Lin smiles naturally and says \"是啊，下次有机会指给你看看\". Her mouth moves in clear lip-sync, her expression relaxed and playful. On \"指给你看看\" she turns her upper body a little more toward the field and raises her right hand, pointing gently into the middle distance as if indicating where the boy usually stands.\n  Su Su nods softly in the background, her face showing anticipation.\n  The camera holds steady with only faint handheld breathing, ending on Lin Lin's warm smile and pointing gesture. No sudden zoom, no cut.\n\noverall_soundscape: Light wind moving across the open field, faint shoe soles scuffing on the grass, a distant flock of birds. Clear Mandarin Chinese dialogue. No shouting, no other voices.\n\nnegative_prompt: shot change, cut-away, insert shot, wide shot, full shot, long shot, establishing shot, extreme close-up, face-only close-up, giant face filling the frame, oversized head, head-and-shoulders filling the whole frame, the field appearing without the women, either woman small and distant in frame, either woman missing from the frame, costume change, changed outfit, added garment, removed garment, different hairstyle, short hair, different face, face swap, third person, crowd, other students, watermark, logo, distorted hands, extra fingers, extra limbs, cartoon, anime, painting, straight-on frontal face at medium shot, head-on front view filling the frame, face turned directly into the lens at medium distance, both women facing the camera frontally, oversaturated, heavy vignette, camera shake, sudden zoom, whip pan, motion blur smear, full rear view of either woman, back of head with the face completely hidden, silent lips, frozen expression"
+      ]
+    },
+    {
+      "id": 11,
+      "type": "SW_H3MultiPrompt_NCG",
+      "title": "★ 多段一体机 NCG【无CFG】（对照24号：唯一变量=删除CFG路径）",
+      "pos": [
+        1440,
+        60
+      ],
+      "size": [
+        420,
+        1500
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 7,
+          "widget": null
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 8,
+          "widget": null
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 9,
+          "widget": null
+        },
+        {
+          "name": "audio_vae",
+          "type": "VAE",
+          "link": 10,
+          "widget": null
+        },
+        {
+          "name": "cond_1",
+          "type": "CONDITIONING",
+          "link": null,
+          "widget": null
+        },
+        {
+          "name": "cond_2",
+          "type": "CONDITIONING",
+          "link": null,
+          "widget": null
+        },
+        {
+          "name": "cond_3",
+          "type": "CONDITIONING",
+          "link": null,
+          "widget": null
+        },
+        {
+          "name": "cond_4",
+          "type": "CONDITIONING",
+          "link": null,
+          "widget": null
+        },
+        {
+          "name": "cond_5",
+          "type": "CONDITIONING",
+          "link": null,
+          "widget": null
+        },
+        {
+          "name": "prompt_1",
+          "type": "STRING",
+          "link": 14,
+          "widget": {
+            "name": "prompt_1"
+          }
+        },
+        {
+          "name": "prompt_2",
+          "type": "STRING",
+          "link": 15,
+          "widget": {
+            "name": "prompt_2"
+          }
+        },
+        {
+          "name": "prompt_3",
+          "type": "STRING",
+          "link": 16,
+          "widget": {
+            "name": "prompt_3"
+          }
+        },
+        {
+          "name": "prompt_4",
+          "type": "STRING",
+          "link": 17,
+          "widget": {
+            "name": "prompt_4"
+          }
+        },
+        {
+          "name": "prompt_5",
+          "type": "STRING",
+          "link": null,
+          "widget": {
+            "name": "prompt_5"
+          }
+        },
+        {
+          "name": "segment_count",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "segment_count"
+          }
+        },
+        {
+          "name": "ref_images.ref_image_0",
+          "type": "IMAGE",
+          "link": 11,
+          "widget": null
+        },
+        {
+          "name": "ref_images.ref_image_1",
+          "type": "IMAGE",
+          "link": 12,
+          "widget": null
+        },
+        {
+          "name": "ref_images.ref_image_2",
+          "type": "IMAGE",
+          "link": 13,
+          "widget": null
+        },
+        {
+          "name": "ref_videos.ref_video_0",
+          "type": "IMAGE",
+          "link": null,
+          "widget": null
+        },
+        {
+          "name": "ref_videos.ref_video_1",
+          "type": "IMAGE",
+          "link": null,
+          "widget": null
+        },
+        {
+          "name": "ref_videos.ref_video_2",
+          "type": "IMAGE",
+          "link": null,
+          "widget": null
+        },
+        {
+          "name": "ref_video_audios.ref_video_audio_0",
+          "type": "AUDIO",
+          "link": null,
+          "widget": null
+        },
+        {
+          "name": "ref_video_audios.ref_video_audio_1",
+          "type": "AUDIO",
+          "link": null,
+          "widget": null
+        },
+        {
+          "name": "ref_video_audios.ref_video_audio_2",
+          "type": "AUDIO",
+          "link": null,
+          "widget": null
+        },
+        {
+          "name": "ref_audios.ref_audio_0",
+          "type": "AUDIO",
+          "link": null,
+          "widget": null
+        },
+        {
+          "name": "ref_audios.ref_audio_1",
+          "type": "AUDIO",
+          "link": null,
+          "widget": null
+        },
+        {
+          "name": "ref_audios.ref_audio_2",
+          "type": "AUDIO",
+          "link": null,
+          "widget": null
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "link": null,
+          "widget": {
+            "name": "width"
+          }
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "link": null,
+          "widget": {
+            "name": "height"
+          }
+        },
+        {
+          "name": "segment_seconds",
+          "type": "FLOAT",
+          "link": null,
+          "widget": {
+            "name": "segment_seconds"
+          }
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": null,
+          "widget": {
+            "name": "seed"
+          }
+        },
+        {
+          "name": "递增种子",
+          "type": "BOOLEAN",
+          "link": null,
+          "widget": {
+            "name": "递增种子"
+          }
+        },
+        {
+          "name": "steps",
+          "type": "INT",
+          "link": null,
+          "widget": {
+            "name": "steps"
+          }
+        },
+        {
+          "name": "sampler_name",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "sampler_name"
+          }
+        },
+        {
+          "name": "scheduler",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "scheduler"
+          }
+        },
+        {
+          "name": "denoise",
+          "type": "FLOAT",
+          "link": null,
+          "widget": {
+            "name": "denoise"
+          }
+        },
+        {
+          "name": "ref_image_size",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "ref_image_size"
+          }
+        },
+        {
+          "name": "visual_strength",
+          "type": "FLOAT",
+          "link": null,
+          "widget": {
+            "name": "visual_strength"
+          }
+        },
+        {
+          "name": "audio_strength",
+          "type": "FLOAT",
+          "link": null,
+          "widget": {
+            "name": "audio_strength"
+          }
+        },
+        {
+          "name": "anchor_frames",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "anchor_frames"
+          }
+        },
+        {
+          "name": "内置sigma_shift",
+          "type": "BOOLEAN",
+          "link": null,
+          "widget": {
+            "name": "内置sigma_shift"
+          }
+        },
+        {
+          "name": "shift_video",
+          "type": "FLOAT",
+          "link": null,
+          "widget": {
+            "name": "shift_video"
+          }
+        },
+        {
+          "name": "shift_audio",
+          "type": "FLOAT",
+          "link": null,
+          "widget": {
+            "name": "shift_audio"
+          }
+        },
+        {
+          "name": "内部解码",
+          "type": "BOOLEAN",
+          "link": null,
+          "widget": {
+            "name": "内部解码"
+          }
+        },
+        {
+          "name": "裁剪到秒数",
+          "type": "FLOAT",
+          "link": null,
+          "widget": {
+            "name": "裁剪到秒数"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "video",
+          "type": "IMAGE",
+          "links": [
+            1,
+            2
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "latent",
+          "type": "LATENT",
+          "links": [],
+          "slot_index": 1
+        },
+        {
+          "name": "段数",
+          "type": "INT",
+          "links": [],
+          "slot_index": 2
+        },
+        {
+          "name": "成片帧数",
+          "type": "INT",
+          "links": [],
+          "slot_index": 3
+        },
+        {
+          "name": "成片秒数",
+          "type": "FLOAT",
+          "links": [],
+          "slot_index": 4
+        },
+        {
+          "name": "每段帧数",
+          "type": "INT",
+          "links": [],
+          "slot_index": 5
+        },
+        {
+          "name": "报告",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 6
+        },
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "links": [
+            3
+          ],
+          "slot_index": 7
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SW_H3MultiPrompt_NCG"
+      },
+      "widgets_values": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "4",
+        768,
+        1344,
+        7.0,
+        1234567890,
+        "fixed",
+        true,
+        6,
+        "euler",
+        "beta",
+        1.0,
+        "match",
+        1.0,
+        1.0,
+        "5",
+        true,
+        12.0,
+        3.0,
+        true,
+        26.0
+      ]
+    },
+    {
+      "id": 12,
+      "type": "CreateVideo",
+      "title": "合成视频（24fps）",
+      "pos": [
+        1920,
+        60
+      ],
+      "size": [
+        300,
+        150
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 1,
+          "widget": null
+        },
+        {
+          "name": "fps",
+          "type": "FLOAT",
+          "link": null,
+          "widget": {
+            "name": "fps"
+          }
+        },
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "link": 3,
+          "widget": null
+        },
+        {
+          "name": "bit_depth",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "bit_depth"
+          }
+        },
+        {
+          "name": "color_space",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "color_space"
+          }
+        },
+        {
+          "name": "codec",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "codec"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "links": [
+            4
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CreateVideo"
+      },
+      "widgets_values": [
+        24.0,
+        "auto",
+        "sRGB",
+        "none"
+      ]
+    },
+    {
+      "id": 13,
+      "type": "PreviewImage",
+      "title": "预览首帧",
+      "pos": [
+        1920,
+        260
+      ],
+      "size": [
+        260,
+        420
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 2,
+          "widget": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": [],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 14,
+      "type": "SaveVideo",
+      "title": "保存视频",
+      "pos": [
+        2280,
+        60
+      ],
+      "size": [
+        340,
+        180
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "link": 4,
+          "widget": null
+        },
+        {
+          "name": "filename_prefix",
+          "type": "STRING",
+          "link": null,
+          "widget": {
+            "name": "filename_prefix"
+          }
+        },
+        {
+          "name": "format",
+          "type": "COMFY_DYNAMICCOMBO_V3",
+          "link": null,
+          "widget": {
+            "name": "format"
+          }
+        },
+        {
+          "name": "format.codec",
+          "type": "COMFY_DYNAMICCOMBO_V3",
+          "link": null,
+          "widget": {
+            "name": "format.codec"
+          }
+        },
+        {
+          "name": "codec",
+          "type": "COMFY_DYNAMICCOMBO_V3",
+          "link": null,
+          "widget": {
+            "name": "codec"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "*",
+          "links": [],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SaveVideo"
+      },
+      "widgets_values": [
+        "H3多段/一体机",
+        "auto",
+        "auto",
+        "auto"
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      11,
+      0,
+      12,
+      0,
+      "IMAGE"
+    ],
+    [
+      2,
+      11,
+      0,
+      13,
+      0,
+      "IMAGE"
+    ],
+    [
+      3,
+      11,
+      7,
+      12,
+      2,
+      "AUDIO"
+    ],
+    [
+      4,
+      12,
+      0,
+      14,
+      0,
+      "VIDEO"
+    ],
+    [
+      5,
+      1,
+      0,
+      2,
+      0,
+      "MODEL"
+    ],
+    [
+      6,
+      2,
+      0,
+      3,
+      0,
+      "MODEL"
+    ],
+    [
+      7,
+      3,
+      0,
+      11,
+      0,
+      "MODEL"
+    ],
+    [
+      8,
+      4,
+      0,
+      11,
+      1,
+      "CLIP"
+    ],
+    [
+      9,
+      5,
+      0,
+      11,
+      2,
+      "VAE"
+    ],
+    [
+      10,
+      25,
+      0,
+      11,
+      3,
+      "VAE"
+    ],
+    [
+      11,
+      101,
+      0,
+      11,
+      15,
+      "IMAGE"
+    ],
+    [
+      12,
+      102,
+      0,
+      11,
+      16,
+      "IMAGE"
+    ],
+    [
+      13,
+      103,
+      0,
+      11,
+      17,
+      "IMAGE"
+    ],
+    [
+      14,
+      20,
+      0,
+      11,
+      9,
+      "STRING"
+    ],
+    [
+      15,
+      21,
+      0,
+      11,
+      10,
+      "STRING"
+    ],
+    [
+      16,
+      22,
+      0,
+      11,
+      11,
+      "STRING"
+    ],
+    [
+      17,
+      23,
+      0,
+      11,
+      12,
+      "STRING"
+    ]
+  ],
+  "groups": [
+    {
+      "title": "① 模型链（UNET → LoRA → 省显存注意力）",
+      "bounding": [
+        20,
+        40,
+        1060,
+        580
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "title": "② 参考图 + 外接纯文本 + 参考音频（一体机内统一编码，更省显存）（NCG 无CFG 对照版）",
+      "bounding": [
+        1080,
+        40,
+        340,
+        2900
+      ],
+      "color": "#8a6d3b",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "title": "③ 一体机：填几个提示词就跑几段（NCG 无CFG 对照版）",
+      "bounding": [
+        1420,
+        40,
+        460,
+        1540
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "title": "④ 输出",
+      "bounding": [
+        1900,
+        40,
+        680,
+        480
+      ],
+      "color": "#674EA7",
+      "font_size": 24,
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {},
+  "version": 0.4
+}

@@ -115,7 +115,32 @@ out = 0 + (cond_pred − 0) × 1.0 = cond_pred
 
 ---
 
-## 五、安装
+## 五、现成工作流
+
+已按A/B 对照要求做好一份可直接拖进 ComfyUI 的工作流：
+
+| 文件 | 说明 |
+|---|---|
+| `24SW_H3_多段一体机_NCG无CFG_4段_3图_竖版.json` | 4 段 / 3 参考图 / 768×1344 竖版 / 26 秒 |
+
+**它就是 24 号原版工作流的逐字节对照版**，只动了一体机节点本身：
+
+- `type`：`SW_H3MultiPrompt` → `SW_H3MultiPrompt_NCG`
+- 删掉 `cfg` 输入口和 `widgets_values` 里那一格`0.8`
+- 其余 16 个节点、17 条连线、4 段提示词、3 张参考图、
+  `seed=1234567890`、`steps=6`、`euler` / `beta`、`裁剪到秒数=26` 全部逐项相同
+
+所以你只要把 24 号和这份各跑一次，**唯一变量就是 CFG 路径**。
+
+已离线校验通过（64/64）：官方 `validate_prompt` 通过、整图端到端执行无错误、
+4 次采样全部 `cfg=1.0` 且 `negative=None`、成片 617 帧 / 25.71 秒、音视频同步。
+
+> 装这份工作流前先确认 ComfyUI 已重启、`SW_H3MultiPrompt_NCG` 能在节点搜索里搜到。
+> 若搜不到，说明插件没加载成功（看启动日志有没有报错）。
+
+---
+
+## 六、安装
 
 ```bash
 cd ComfyUI/custom_nodes
@@ -126,7 +151,7 @@ git clone <this-repo-url> ComfyUI-SW-H3Segments-NCFG
 
 ---
 
-## 六、A/B 怎么比
+## 七、A/B 怎么比
 
 想公平对比，两个节点用**完全相同**的：
 
@@ -148,6 +173,6 @@ git clone <this-repo-url> ComfyUI-SW-H3Segments-NCFG
 
 ---
 
-## 七、许可证
+## 八、许可证
 
 保留所有权利。未经作者书面许可，不得复制、分发或用于商业用途。

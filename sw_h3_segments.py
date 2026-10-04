@@ -207,7 +207,7 @@ class SW_H3_SegPlan_NCG(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SW_H3_SegPlan_NCG",
-            display_name="SW H3 分段计划",
+            display_name="SW H3 分段计划【无CFG·NCG】",
             category="SW/H3Segments",
             description=(
                 "算出每段帧数（吸附到 5+17n 网格）、每段 latent token 数、成片总帧数。"
