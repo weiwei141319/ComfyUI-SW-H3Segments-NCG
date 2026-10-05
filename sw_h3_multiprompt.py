@@ -118,6 +118,17 @@ FRAME_STEP = 17
 # 可选段数上限
 MAX_SEGMENTS = 5
 
+# 固定分段方案（2026-10-05 定稿）：不再让用户手调「段数 / 每段秒数 / 裁剪秒数」三个底层参数。
+#   每段长度固定：前 n-1 段一律 10.5 秒，**末段一律 10 秒**；
+#   段数由「目标总时长」唯一决定；自然成片超出目标的部分直接裁掉
+#   （视频与音频同步裁，杜绝音画错位）。
+FIXED_SEG_SECONDS = 10.5      # 前 n-1 段（吸附后 260 帧）
+FIXED_LAST_SECONDS = 10.0     # ★ 3 段及以上方案的末段（吸附后 243 帧）
+# 预置表覆盖范围：16.0 ~ 31.5 秒，步长 0.5
+PRESET_MIN_SECONDS = 16.0
+PRESET_MAX_SECONDS = 31.5
+PRESET_STEP_SECONDS = 0.5
+
 
 # ===========================================================================
 # 小工具
@@ -145,6 +156,148 @@ def _align_frame_count_floor(n: int) -> int:
     return FRAME_BASE + k * FRAME_STEP
 
 
+def _plan_seg_seconds(n_seg: int) -> list:
+    """n 段方案下「每段生成秒数」的固定组合（用户 2026-10-05 定稿）：
+
+        1 段            → [10.5]
+        2 段            → [10.5, 10.5]
+        3 段            → [10.5, 10.5, 10.0]
+        4 段            → [10.5, 10.5, 10.5, 10.0]
+        5 段            → [10.5, 10.5, 10.5, 10.5, 10.0]
+    """
+    n = max(1, min(MAX_SEGMENTS, int(n_seg)))
+    if n <= 2:
+        return [FIXED_SEG_SECONDS] * n
+    return [FIXED_SEG_SECONDS] * (n - 1) + [FIXED_LAST_SECONDS]
+
+
+def _plan_seg_frames(n_seg: int) -> list:
+    """_plan_seg_seconds 的帧数版（吸附到 5+17n 网格）。"""
+    return [_align_frame_count(int(round(s * H3_FPS)))
+            for s in _plan_seg_seconds(n_seg)]
+
+
+def _natural_frames_of(n_seg: int, anchor_frames=5) -> int:
+    """n 段按固定方案生成、拼接后的自然成片帧数（未裁剪）。
+
+    段间锚 anchor 帧在拼接时被丢弃，故 n 段净贡献 = 各段帧数之和 - anchor*(n-1)。
+        1 段 = 260 帧（10.833s）
+        2 段 = 515 帧（21.458s）
+        3 段 = 753 帧（31.375s）
+    """
+    anchor = int(anchor_frames) if int(anchor_frames) in (1, 5) else 5
+    return sum(_plan_seg_frames(n_seg)) - anchor * (max(1, int(n_seg)) - 1)
+
+
+def _seg_count_for_seconds(total_seconds) -> int:
+    """目标总时长 -> 固定方案段数（用户 2026-10-05 定稿的区间表）：
+
+        ≤15 秒    → 1 段（10.5）
+        16~20.5 秒 → 2 段（10.5 + 10.5）
+        21~31 秒 → 3 段（10.5 + 10.5 + 10）
+        >31 秒   → 继续扩展，取「能覆盖目标」的最小段数（最多 5 段）
+    """
+    sec = float(total_seconds)
+    if sec <= 15.0:
+        return 1
+    if sec <= 20.5:
+        return 2
+    if sec <= 31.0:
+        return 3
+    target = int(round(sec * H3_FPS))
+    for n in range(4, MAX_SEGMENTS + 1):
+        if _natural_frames_of(n) >= target:
+            return n
+    return MAX_SEGMENTS
+
+
+def _plan_segments(total_seconds, anchor_frames=5) -> dict:
+    """★ 按「每段固定 10.5 秒 + 超出裁掉」的固定组合，规划整条片子的分段。
+
+    这是「目标总时长」唯一驱动的分段规划器 —— 用户只需填一个总秒数，
+    段数、每段帧数、每段 token、成片帧数、裁剪点全部由本函数算出，
+    不再依赖 segment_count / segment_seconds / 裁剪到秒数 三个手动参数。
+
+    规则（用户 2026-10-05 定稿）：
+        · ≤15 秒    → 1 段（10.5）             自然 260 帧 = 10.833s
+        · 16~20.5 秒 → 2 段（10.5 + 10.5）      自然 515 帧 = 21.458s
+        · 21~31 秒  → 3 段（10.5 + 10.5 + 10）  自然 753 帧 = 31.375s
+      · >31 秒   → 继续扩展到 4/5 段，取能覆盖目标的最小段数
+      · 成片 = min(目标帧数, 自然成片) —— 超出部分直接裁掉，音视频同步裁
+        → 17 秒 = 408 帧（10.5+10.5，裁 107 帧）
+        → 29 秒 = 696 帧（10.5+10.5+10，裁 57 帧）
+        → 31 秒 = 744 帧（10.5+10.5+10，裁 9 帧）
+
+    返回的 dict 字段：
+      n_seg / seg_frames / step_frames / target_frames / natural_frames /
+      out_frames / out_seconds / seg_frames_list / seg_tokens_list /
+      anchor / anchor_tokens / total_tokens
+    """
+    anchor = int(anchor_frames)
+    if anchor not in (1, 5):
+        anchor = 5
+    target = max(FRAME_BASE, int(round(float(total_seconds) * H3_FPS)))
+    n = _seg_count_for_seconds(total_seconds)
+    seg_frames_list = _plan_seg_frames(n)
+    sf = seg_frames_list[0]
+    step = sf - anchor
+    natural = _natural_frames_of(n, anchor)
+    out = min(target, natural)
+
+    anchor_tokens = _anchor_token_count(anchor)
+    seg_tokens_list = [
+        (_video_latent_t(seg_frames_list[i]) - (anchor_tokens if i > 0 else 0))
+        for i in range(n)
+    ]
+    total_tokens = sum(seg_tokens_list)
+
+    return {
+        "n_seg": n,
+        "seg_frames": sf,
+        "step_frames": step,
+        "target_frames": target,
+        "natural_frames": natural,
+        "out_frames": out,
+        "out_seconds": out / float(H3_FPS),
+        "seg_frames_list": seg_frames_list,
+        "seg_tokens_list": seg_tokens_list,
+        "anchor": anchor,
+        "anchor_tokens": anchor_tokens,
+        "total_tokens": total_tokens,
+        "crop_frames": natural - out,          # 被裁掉的帧数
+        "crop_seconds": (natural - out) / float(H3_FPS),
+        "shortfall_frames": max(0, target - natural),   # ★ 自然成片够不到目标的帧数
+        "seg_seconds_list": _plan_seg_seconds(n),
+    }
+
+
+def _build_duration_presets() -> dict:
+    """预置表：16.0 ~ 31.5 秒（步长 0.5）全部提前测算好，插件启动时算一次。
+
+    存在的意义：① 用户/脚本可以直接查表拿到任意秒数的确定值，不用自己算；
+    ② 生成脚本与校验器 import 同一张表，保证「工作流里的值」与
+    「插件实际会算出的值」永远一致，杜绝手动调参漂移。
+    """
+    presets = {}
+    sec = PRESET_MIN_SECONDS
+    while sec <= PRESET_MAX_SECONDS + 1e-9:
+        key = round(sec, 2)
+        presets[key] = _plan_segments(key)
+        sec += PRESET_STEP_SECONDS
+    return presets
+
+
+def _preset_line(sec: float) -> str:
+    """把某个秒数的预置结果渲染成一行可读文本（报告 / 文档用）。"""
+    p = DURATION_PRESETS.get(round(float(sec), 2)) or _plan_segments(sec)
+    combo = "+".join("%.1f" % s for s in p["seg_seconds_list"])
+    tail = ("  ⚠️ 自然成片不足 %d 帧" % p["shortfall_frames"]
+            if p["shortfall_frames"] else "  裁掉 %d 帧" % p["crop_frames"])
+    return ("%5.1fs → %d 段（%s）  自然 %d 帧 → 成片 %d 帧 = %.3fs%s"
+            % (sec, p["n_seg"], combo,
+               p["natural_frames"], p["out_frames"], p["out_seconds"], tail))
+
+
 def _video_latent_t(frame_count: int) -> int:
     """帧数 -> video latent token 数（与官方 video_latent_t 一致）。"""
     fc = int(frame_count)
@@ -167,6 +320,11 @@ def _anchor_token_count(anchor_frames: int) -> int:
         if total >= frames:
             return k + 1
     return 2
+
+
+# ★ 预置表必须在 _anchor_token_count / _video_latent_t / _align_frame_count 都定义完之后
+#   再构建（_plan_segments 会用到它们）。插件启动时算一次，之后全程查表。
+DURATION_PRESETS = _build_duration_presets()
 
 
 def _as_int(value, default=0) -> int:
@@ -237,6 +395,41 @@ def _encode_ref_audio(audio_vae, audio):
         waveform = torchaudio.functional.resample(waveform, sr, vae_sr)
     z = audio_vae.encode(waveform[:1].movedim(1, -1))  # [1, 32, 2, T]
     return z, z.shape[-1]
+
+
+def _slice_audio(audio, start_sec, dur_sec):
+    """按秒切出参考音频的一段，返回 ComfyUI AUDIO 格式（waveform/sample_rate）。
+
+    用于「按段喂音频」：长视频分段生成时，每段只该听到自己在成片里对应的那
+    一段原曲，而不是整首。
+
+    末段越界处理（重要）：成片时长常常略长于原曲（帧网格 5+17n 只能向上吸附，
+    末段又不砍尾），末段的窗口右端可能超出音频尾部。此时**不返回 None**，
+    而是把窗口收缩到「音频实际剩余的时长」并把 audio 标记为 partial ——
+    模型据此知道这段原曲已经唱完，后面的静音由它自己续上（MV 收尾正好需要）。
+    真正切不出任何采样（起点已在音频之后）才返回 None，让调用方回退整首。
+    """
+    if audio is None:
+        return None
+    try:
+        waveform = audio["waveform"]           # [B, C, L]
+        sr = int(audio["sample_rate"])
+        total = int(waveform.shape[-1])
+    except Exception:
+        return None
+    if total <= 0 or sr <= 0:
+        return None
+    i0 = int(round(max(0.0, float(start_sec)) * sr))
+    if i0 >= total:                            # 整段都在音频之后 -> 真切不出
+        return None
+    # 末尾留 1 采样余量，避免浮点误差把最后一个采样切掉
+    i1 = min(total - 1, i0 + int(round(max(0.0, float(dur_sec)) * sr)))
+    if i1 - i0 < 8:                            # 尾部残留不足 0.25ms，视为切不出
+        return None
+    return {"waveform": waveform[..., i0:i1].clone(),
+            "sample_rate": sr,
+            "partial": i1 - i0 < int(round(float(dur_sec) * sr)),
+            "slice_window": (i0 / float(sr), (i1 - 1) / float(sr))}
 
 
 def _build_refs(vae, audio_vae, ref_image_size, width, height,
@@ -311,10 +504,12 @@ def _build_refs(vae, audio_vae, ref_image_size, width, height,
 
     # ---- 独立参考音频 ----
     audio_count = 0
+    raw_audios = []                 # ★ 原始 AUDIO（未编码），供「按段切分」用
     for audio in (ref_audios or {}).values():
         if audio is None:
             continue
         ref_items.append({"type": "audio"})
+        raw_audios.append(audio)
         if audio_vae is not None:
             audio_latent, ref_audio_t = _encode_ref_audio(audio_vae, audio)
             ref_blocks.append({"kind": "audio", "ref_audio_t": ref_audio_t, "audio_latent": audio_latent})
@@ -322,7 +517,7 @@ def _build_refs(vae, audio_vae, ref_image_size, width, height,
 
     counts = {"image": img_count, "video": video_count,
               "video_audio": video_audio_count, "audio": audio_count}
-    return ref_items, ref_blocks, counts
+    return ref_items, ref_blocks, counts, raw_audios
 
 
 def _empty_av_latent(width, height, length, batch_size=1):
@@ -442,36 +637,29 @@ class SW_H3MultiPrompt_NCG(io.ComfyNode):
                 io.Vae.Input("vae", tooltip="H3 video VAE。最后做一次性解码。"),
                 io.Vae.Input("audio_vae", tooltip="H3 audio VAE。参考音频需要它来编码。"),
 
-                # ---- 5 个外部条件口（可选） ----
-                # 想像截图里那样外接 CLIPTextEncode 时连这里。连了 cond_N 就跳过
-                # prompt_N 的内部编码，直接拿外部条件并注入参考资产。
-                io.Conditioning.Input("cond_1", optional=True, tooltip="第 1 段外部条件。连接后优先使用，不再用 prompt_1 内部编码。"),
-                io.Conditioning.Input("cond_2", optional=True, tooltip="第 2 段外部条件。"),
-                io.Conditioning.Input("cond_3", optional=True, tooltip="第 3 段外部条件。"),
-                io.Conditioning.Input("cond_4", optional=True, tooltip="第 4 段外部条件。"),
-                io.Conditioning.Input("cond_5", optional=True, tooltip="第 5 段外部条件。"),
-
-                # ---- 5 个提示词口 ----
+                # ---- 5 个提示词口（唯一入口）----
+                # 2026-10-04 起移除了 cond_1..cond_5 这 5 个外部条件口：
+                #   它们只是 prompt_N 的旁路（外接 CLIPTextEncode），本机 37 份
+                #   工作流无一份使用，功能与提示词框完全重叠，纯属面板噪音。
                 # ★ 必须是 required（不能 optional），否则 io.ComfyNode 生成的
                 #   INPUT_TYPES 会把 optional widget 全部挪到 required 后面，
                 #   导致 widgets_values 与前端/后端顺序不一致，全部参数错位。
                 #   空字符串仍被节点视为「未填写」，不影响自动段数判定。
-                #   如果对应 cond_N 已连接，prompt_N 会被忽略。
                 io.String.Input(
                     "prompt_1", multiline=True, dynamic_prompts=True,
-                    tooltip="第 1 段提示词。★ 必填（或与 cond_1 二选一）。相对时间码从 0 秒开始。"),
+                    tooltip="第 1 段提示词。★ 必填。相对时间码从 0 秒开始。"),
                 io.String.Input(
                     "prompt_2", multiline=True, dynamic_prompts=True,
-                    tooltip="第 2 段提示词。接上/填了才启用第 2 段（或与 cond_2 二选一）。"),
+                    tooltip="第 2 段提示词。填了才启用第 2 段。"),
                 io.String.Input(
                     "prompt_3", multiline=True, dynamic_prompts=True,
-                    tooltip="第 3 段提示词。接上/填了才启用第 3 段（或与 cond_3 二选一）。"),
+                    tooltip="第 3 段提示词。填了才启用第 3 段。"),
                 io.String.Input(
                     "prompt_4", multiline=True, dynamic_prompts=True,
-                    tooltip="第 4 段提示词。接上/填了才启用第 4 段（或与 cond_4 二选一）。"),
+                    tooltip="第 4 段提示词。填了才启用第 4 段。"),
                 io.String.Input(
                     "prompt_5", multiline=True, dynamic_prompts=True,
-                    tooltip="第 5 段提示词。接上/填了才启用第 5 段（或与 cond_5 二选一）。最多 5 段。"),
+                    tooltip="第 5 段提示词。填了才启用第 5 段。最多 5 段。"),
 
                 io.Combo.Input(
                     "segment_count",
@@ -498,16 +686,18 @@ class SW_H3MultiPrompt_NCG(io.ComfyNode):
                         input=io.Image.Input(
                             "ref_video",
                             tooltip="参考视频帧序列（IMAGE）。提示词里用 <Video 1> <Video 2> ... 引用。"),
-                        prefix="ref_video_", min=0, max=3)),
+                        prefix="ref_video_", min=0, max=1)),
 
                 # ---- 参考视频配套音轨 ----
+                # ★ 与 ref_videos 同步收到 1 个：音轨必须与视频同号，
+                #   视频只剩 1 个时多挂音轨口只是面板噪音。
                 io.Autogrow.Input(
                     "ref_video_audios", optional=True,
                     template=io.Autogrow.TemplatePrefix(
                         input=io.Audio.Input(
                             "ref_video_audio",
-                            tooltip="与 ref_video_N 同号的参考视频音轨。需要 audio_vae。"),
-                        prefix="ref_video_audio_", min=0, max=3)),
+                            tooltip="与 ref_video_0 同号的参考视频音轨。需要 audio_vae。"),
+                        prefix="ref_video_audio_", min=0, max=1)),
 
                 # ---- 独立参考音频 ----
                 io.Autogrow.Input(
@@ -551,10 +741,20 @@ class SW_H3MultiPrompt_NCG(io.ComfyNode):
                 io.Float.Input("visual_strength", default=0.999, min=0.0, max=1.0, step=0.001,
                                tooltip="参考图 latent 的保真度。1.0 最贴参考图，调低让模型有自由度。"),
                 io.Float.Input("audio_strength", default=1.0, min=0.0, max=1.0, step=0.001,
-                               tooltip="参考音频 latent 的保真度。没用参考音频时无影响。"),
+                               tooltip="参考音频 latent 的保真度。没用参考音频时无影响。"
+                                       "★ 保持 1.0：调低等于给参考音频加噪（model.py:547 audio_cond_noise_aug），"
+                                       "口型会飘。"),
                 io.Combo.Input("anchor_frames", options=["5", "1"], default="5",
                                tooltip="段间锚定帧数。5 帧（推荐）保证拼接后总帧数仍落在网格上；"
                                        "1 帧衔接更紧但总帧数会偏。"),
+                io.Boolean.Input("按段切分参考音频", default=True,
+                                 tooltip=("★ 长视频对口型的关键开关。开启后第 i 段只喂原曲里属于它自己"
+                                          "那段时间的音频切片（通过 minimax_keyframes 的 audio_latent + "
+                                          "resolved_frame_index 注入，模型知道每个字该在第几帧发声），"
+                                          "而不是每段都喂整首。\n"
+                                          "关闭 = 旧行为（整首共享，段 2 以后模型不知道该唱哪一段，"
+                                          "口型必然漂）。\n"
+                                          "只有 1 段时两种模式完全等价。")),
 
                 # ---- 采样分布 ----
                 io.Boolean.Input("内置sigma_shift", default=True,
@@ -571,6 +771,20 @@ class SW_H3MultiPrompt_NCG(io.ComfyNode):
                                 tooltip=("0 = 不裁（用每段自然时长，对白最完整）。填 26 时：默认让「最后一段」"
                                          "只生成补足剩余时长的长度（末段对白完整保留），而不是先满段再砍尾；"
                                          "视频与音频同步裁剪，避免音视频错位。若段数过多前段已超目标，则回退砍尾并警告。")),
+
+                # ★ 2026-10-05：唯一需要填的时长参数
+                io.Float.Input(
+                    "目标总时长", default=31.0, min=0.0, max=600.0, step=0.5,
+                    tooltip=(
+                        "★ 只填这一个数就行 —— 段数、每段帧数、每段 token、成片帧数、裁剪点全部由插件内部"
+                        "预置的固定方案算出，不用再动「段数 / 每段秒数 / 裁剪到秒数」那三个底层参数。\n"
+                        "固定方案（每段长度写死，段数只由你填的秒数决定）：\n"
+                        "  ≤15 秒    → 1 段：10.5          自然 260 帧（10.833s）\n"
+                        "  16~20.5 秒 → 2 段：10.5 + 10.5   自然 515 帧（21.458s）\n"
+                        "  21~31 秒  → 3 段：10.5 + 10.5 + 10  自然 753 帧（31.375s）\n"
+                        "  成片 = min(目标, 自然成片)，超出部分直接裁掉（音视频同步裁，不会音画错位）。\n"
+                        "  例：17 秒 = 408 帧，29 秒 = 696 帧，31 秒 = 744 帧（都精确等于你填的秒数）。\n"
+                        "★ 填 0 = 关闭自动规划，退回上面三个手动参数的旧行为。")),
             ],
             outputs=[
                 io.Image.Output(display_name="video"),
@@ -587,7 +801,6 @@ class SW_H3MultiPrompt_NCG(io.ComfyNode):
     # ---------------------------------------------------------------- #
     @classmethod
     def execute(cls, model, clip, vae, audio_vae=None,
-                cond_1=None, cond_2=None, cond_3=None, cond_4=None, cond_5=None,
                 prompt_1=None, prompt_2=None, prompt_3=None,
                 prompt_4=None, prompt_5=None,
                 segment_count="auto", ref_images=None,
@@ -597,16 +810,15 @@ class SW_H3MultiPrompt_NCG(io.ComfyNode):
                 sampler_name="euler", scheduler="beta", denoise=1.0,
                 ref_image_size="match",
                 visual_strength=0.999, audio_strength=1.0,
-                anchor_frames="5",
+                anchor_frames="5", 按段切分参考音频=True,
                 内置sigma_shift=True, shift_video=12.0, shift_audio=3.0,
-                内部解码=True, 裁剪到秒数=0.0) -> io.NodeOutput:
+                内部解码=True, 裁剪到秒数=0.0, 目标总时长=31.0) -> io.NodeOutput:
 
         # ================= 1. 段数判定 =================
-        cond_slots = [cond_1, cond_2, cond_3, cond_4, cond_5]
+        # ★ 2026-10-04：cond_1..cond_5 已从 schema 移除，段数只看 prompt 文本。
         prompt_slots = [prompt_1, prompt_2, prompt_3, prompt_4, prompt_5]
         texts = [(str(p).strip() if p is not None else "") for p in prompt_slots]
-        # 有效 = 外部 cond 已连，或 prompt 填了非空文本
-        active = [(cond_slots[i] is not None) or bool(texts[i]) for i in range(MAX_SEGMENTS)]
+        active = [bool(texts[i]) for i in range(MAX_SEGMENTS)]
 
         # auto：数「从第 1 口起连续有效」的长度。遇到空口即停 —— 段号必须连续，
         # 否则后段会拿着空条件去采样。
@@ -617,31 +829,29 @@ class SW_H3MultiPrompt_NCG(io.ComfyNode):
             else:
                 later = [j + 1 for j in range(idx + 1, MAX_SEGMENTS) if active[j]]
                 if later:
-                    stop_reason = ("第 %d 段既没接 cond 也没填 prompt，但第 %s 段有效 —— 段号必须连续，"
+                    stop_reason = ("第 %d 段没填 prompt，但第 %s 段有效 —— 段号必须连续，"
                                    "auto 模式只认前 %d 段"
                                    % (idx + 1, "/".join(str(j) for j in later), auto_count))
                 break
 
         def _describe_filled():
-            parts = []
-            for i in range(MAX_SEGMENTS):
-                if cond_slots[i] is not None:
-                    parts.append("第%d段(cond)" % (i + 1))
-                elif texts[i]:
-                    parts.append("第%d段(prompt)" % (i + 1))
+            parts = ["第%d段" % (i + 1) for i in range(MAX_SEGMENTS) if texts[i]]
             return "、".join(parts) or "（全空）"
 
         mode = str(segment_count).strip().lower()
+        # ★ 自动时长规划开启时，「至少 3 段」的硬检查交给 1b 段按总时长判定
+        #   （16 秒片子只需要 2 段，这时不应该报错）。
+        _auto_dur = _as_float(目标总时长, 0.0)
         if mode == "auto":
             n_seg = auto_count
-            if n_seg < 3:
+            if n_seg < 3 and _auto_dur <= 0:
                 raise ValueError(
                     "[SW-H3Multi] 自动数出 %d 段有效输入，但本节点面向 15 秒以上长视频，"
                     "最低需要 3 段（3 段 = 21.5 秒）。\n"
                     "  · 你填了：%s\n"
                     "%s"
                     "  · 解决办法：① 把 segment_count 手动设成 \"1\" 或 \"2\" 先试效果；\n"
-                    "            ② 补齐第 %d 段 cond 或 prompt（段号要连续）。"
+                    "            ② 补齐第 %d 段的 prompt（段号要连续）。"
                     % (n_seg, _describe_filled(),
                        ("  · 注意：%s\n" % stop_reason) if stop_reason else "",
                        n_seg + 1))
@@ -651,18 +861,39 @@ class SW_H3MultiPrompt_NCG(io.ComfyNode):
             missing = [i + 1 for i in range(n_seg) if not active[i]]
             if missing:
                 raise ValueError(
-                    "[SW-H3Multi] segment_count 锁了 %d 段，但第 %s 段既没接 cond 也没填 prompt。\n"
+                    "[SW-H3Multi] segment_count 锁了 %d 段，但第 %s 段没填 prompt。\n"
                     "  · 已填：%s"
                     % (n_seg, "/".join(str(j) for j in missing), _describe_filled()))
 
         n_seg = max(1, min(MAX_SEGMENTS, n_seg))
 
-        # 为每段准备：外部 cond（优先）或内部 prompt
-        external_conds = [cond_slots[i] for i in range(n_seg)]
-        prompts_for_internal = [
-            None if cond_slots[i] is not None else texts[i]
-            for i in range(n_seg)
-        ]
+        # ================= 1b. ★ 自动时长规划 ==============================
+        # 2026-10-05：把「段数 / 每段秒数 / 裁剪到秒数」三个需要手调的底层参数，
+        # 固化成插件内部的固定方案 —— 前 n-1 段一律 10.5 秒、末段一律 10.0 秒、
+        # 自然成片超出目标的部分直接裁掉（音视频同步裁）。
+        # 用户只填「目标总时长」一个数，其余全部查预置表/实时算出。
+        auto_plan = None
+        if _auto_dur > 0:
+            auto_plan = _plan_segments(_auto_dur, anchor_frames=_as_int(anchor_frames, 5))
+            want = auto_plan["n_seg"]
+            if n_seg < want:
+                raise ValueError(
+                    "[SW-H3Multi] 目标总时长 %.2f 秒按固定方案需要 %d 段（%s），"
+                    "但你只填了 %d 段 prompt（%s）。\n"
+                    "  · 请补齐第 %d 段的 prompt；或把「目标总时长」改小到 %.2f 秒以内走 %d 段。"
+                    % (_auto_dur, want,
+                       "+".join(["10.5"] * (want - 1) + ["10.0"]),
+                       n_seg, _describe_filled(), n_seg + 1,
+                       _natural_frames_of(n_seg) / float(H3_FPS), n_seg))
+            n_seg = want
+            segment_seconds = FIXED_SEG_SECONDS      # 报告用；真实帧数由 seg_frames_list 决定
+            裁剪到秒数 = _auto_dur                    # 成片精确裁到目标秒数
+            print("[SW-H3Multi] 自动时长规划：%.2f 秒 → %s"
+                  % (_auto_dur, _preset_line(_auto_dur)), flush=True)
+
+        # ★ cond_N 已移除：每段一律走内部 prompt 编码。
+        external_conds = [None] * n_seg
+        prompts_for_internal = [texts[i] for i in range(n_seg)]
 
         # ================= 2. 帧数规划 =================
         width = _as_int(width, 1344)
@@ -690,7 +921,20 @@ class SW_H3MultiPrompt_NCG(io.ComfyNode):
         seg_frames_list = [seg_frames] * n_seg
         last_shortened = False
         tail_chop_fallback = False
-        if crop_target > 0 and n_seg >= 2:
+
+        if auto_plan is not None:
+            # ★ 自动模式：段数 / 每段帧数 / 裁剪点全部来自固定方案。
+            #   末段固定 10 秒**不缩短**（不是「补足模式」）—— 自然成片超出目标的
+            #   部分在最后一步直接裁掉，末段对白与收尾完整保留。
+            seg_frames_list = list(auto_plan["seg_frames_list"])
+            if auto_plan["anchor"] != anchor:            # 理论上一致，防御性对齐
+                anchor = auto_plan["anchor"]
+                anchor_tokens = _anchor_token_count(anchor)
+            step_frames = auto_plan["step_frames"]
+            total_frames = auto_plan["natural_frames"]
+            last_shortened = False
+            tail_chop_fallback = False
+        elif crop_target > 0 and n_seg >= 2:
             lead_frames = seg_frames + step_frames * (n_seg - 2)   # 前 n-1 段自然总帧数
             remainder = crop_target - lead_frames
             if remainder >= FRAME_BASE:
@@ -707,14 +951,100 @@ class SW_H3MultiPrompt_NCG(io.ComfyNode):
                                        _as_float(shift_audio, 3.0))
 
         # ================= 4. 参考资产只编码一次 =================
-        ref_items, ref_blocks, ref_counts = _build_refs(
+        ref_items, ref_blocks, ref_counts, raw_audios = _build_refs(
             vae, audio_vae, ref_image_size, width, height,
             ref_images=ref_images, ref_videos=ref_videos,
             ref_video_audios=ref_video_audios, ref_audios=ref_audios)
         print("[SW-H3Multi] 参考资产：图 %d 张 / 视频 %d 个（含音轨 %d） / 独立音频 %d 条"
-              "（只编码一次，%d 段共用）"
               % (ref_counts["image"], ref_counts["video"], ref_counts["video_audio"],
-                 ref_counts["audio"], n_seg), flush=True)
+                 ref_counts["audio"]), flush=True)
+
+        # ================= 4b. ★ 按段切分参考音频 =================
+        # 长视频对口型的根因修复。
+        #
+        # 旧行为：_build_refs 只跑一次，整首参考音频被编成**一个** ref_audio block
+        # 注入到每一段（minimax_refs 全段共用）。H3 的 PackedLayout 把它放在
+        # 「text 之后、target 之前」的独立 token 段（model.py:412
+        # `segments.append(("ref_audio", rt*2))`），**不带任何时间戳对齐信息**。
+        # 于���第2/3 段生成时，模型只知道「这首歌是这个人唱的」，完全不知道
+        # 「我现在生成的这 10 秒对应原曲的哪 10 秒」-> 口型必然漂、歌词必然重复。
+        #
+        # 新行为：把每段在**成片里的全局时间窗**算出来，用 _slice_audio 从原曲
+        # 切出该窗的音频，编码成 audio_latent 后放进该段的 minimax_keyframes，
+        # 带 resolved_frame_index=0。PackedLayout 对 keyframes 走
+        # `cond_t = cursor + FRAME_RESCALE * resolved_frame_index`
+        # 并生成 ("cond_audio", rt*2) 段（model.py:386-393）——这一段是
+        # **贴在 target 时间轴上**的，模型由此获得逐帧的音素对齐。
+        seg_audio_slices = []          # 段i -> wav dict 或 None
+        slice_mode = "off"
+        if (_as_bool(按段切分参考音频, True) and raw_audios
+                and audio_vae is not None and n_seg >= 1):
+            src = raw_audios[0]
+            seg_audio_slices = []
+            ok_all = True
+            # ★ 段 i 的【生成帧 0】在成片里的全局位置。
+            #
+            #   拼接规则（见本文件「8. latent 拼接」）：
+            #     段 0 的全部 nf_0 帧都进成片 -> 全局 0 .. nf_0-1
+            #     段 j>0 的前 anchor 帧是「上一段的尾帧复刻」，拼接时被丢弃
+            #       -> 段 j 只贡献 nf_j - anchor 帧
+            #
+            #   而段 j 的生成帧 0 **就是**上一段贡献区的末尾 anchor 帧
+            #   （它被复刻自上一段的尾帧），所以：
+            #     start_0 = 0
+            #     start_j = (前面各段已贡献的帧数总和) - anchor
+            #
+            #   切片【长度】仍取 nf_j（全长，含将被丢弃的 anchor 帧），
+            #   这样 anchor 帧的音频也与视频对齐，拼接丢弃后不多不少。
+            #
+            #   ⚠️ 两个必须避开的坑（都实测踩过）：
+            #     (a) 在循环里用「当前段 nf」累加 -> 末段缩短时起点算错
+            #         3 段 260/260/226：错得 476(19.83s)，应为 510(21.25s)
+            #     (b) 忘记减 anchor -> 段2 起点 260(10.83s)，应为 255(10.63s)
+            global_start = 0
+            contributed = 0                     # 前面各段已进成片的帧数
+            for i in range(n_seg):
+                nf = seg_frames_list[i]
+                start_sec = global_start / float(H3_FPS)
+                dur_sec = nf / float(H3_FPS)
+                sl = _slice_audio(src, start_sec, dur_sec)
+                if sl is None:
+                    ok_all = False
+                    seg_audio_slices.append(None)
+                else:
+                    seg_audio_slices.append(sl)
+                # 推进到下一段
+                contributed += nf if i == 0 else (nf - anchor)
+                global_start = contributed - anchor if i < n_seg - 1 else contributed
+            if ok_all and all(s is not None for s in seg_audio_slices):
+                slice_mode = "per_segment"
+                print("[SW-H3Multi] 按段切分参考音频：已开启（长视频对口型修复）")
+                for i, sl in enumerate(seg_audio_slices):
+                    a, b = sl["slice_window"]
+                    print("[SW-H3Multi]   段 %d/%d ← 原曲 %.3f-%.3f 秒（%.3f 秒）%s"
+                          % (i + 1, n_seg, a, b, b - a,
+                             "  ⚠️ 原曲已到尾部，该段后段为收尾/静音" if sl["partial"] else ""),
+                          flush=True)
+            else:
+                seg_audio_slices = []
+                slice_mode = "fallback_whole"
+                print("[SW-H3Multi] 按段切分参考音频：切片失败（音频过短或越界），"
+                      "回退为整首共享。", flush=True)
+        elif raw_audios and audio_vae is not None:
+            slice_mode = "fallback_whole"
+        if not raw_audios:
+            slice_mode = "none"
+
+        # 按段切分模式下，整首 ref_audio block 必须剔除：
+        # 否则「未对齐的整首」和「已对齐的本段切片」会同时进序列，
+        # 既浪费 token 又会稀释对齐信号。图像类 block 原样保留。
+        if slice_mode == "per_segment":
+            kept = [b for b in ref_blocks if b.get("kind") != "audio"]
+            if len(kept) != len(ref_blocks):
+                print("[SW-H3Multi] 已剔除整首 ref_audio block（%d 个），"
+                      "改由各段 keyframes 的 cond_audio 提供对齐音频。"
+                      % (len(ref_blocks) - len(kept)), flush=True)
+            ref_blocks = kept
 
         # ================= 5. 逐段编译条件（CLIP 在这一步） =================
         conds = []
@@ -747,6 +1077,18 @@ class SW_H3MultiPrompt_NCG(io.ComfyNode):
 
         del ref_items, ref_blocks
 
+        # ================= 5b. 按段切分：预编码每段的 audio latent =================
+        # 只保留图像类 ref_blocks（整首 ref_audio 已在 4b 里剔除），
+        # 音频改为逐段走 keyframes 的 cond_audio（贴在 target 时间轴上）。
+        seg_audio_latents = []
+        if slice_mode == "per_segment":
+            for i, sl in enumerate(seg_audio_slices):
+                z, _rt = _encode_ref_audio(audio_vae, sl)
+                seg_audio_latents.append(z)
+                print("[SW-H3Multi]   段 %d 音频 latent：%d 帧（%.3f 秒）"
+                      % (i + 1, int(z.shape[-1]),
+                         int(z.shape[-1]) / 40.0), flush=True)
+
         # ================= 6. 卸载 CLIP（一次） =================
         # 采样前必然不再需要 CLIP（条件已全部编译完，且采样不再走文本编码器），
         # 所以这一段无条件执行，不受「内部解码」开关影响。
@@ -767,12 +1109,24 @@ class SW_H3MultiPrompt_NCG(io.ComfyNode):
 
         for i, cond in enumerate(conds):
             seg_seed = (seed0 + stride * i) % 0x10000000000000000
+            kf = list(cond[0][1].get("minimax_keyframes", []))
+
+            # ★ 按段切分：把本段那一份原曲切片作为 cond_audio 挂到 frame 0。
+            # PackedLayout 对 keyframes 的 audio 走
+            #   cond_t = cursor + FRAME_RESCALE * resolved_frame_index
+            #   segments.append(("cond_audio", rt * 2))
+            # 这一段是**贴 target 时间轴**的（不是 ref_audio 那种悬空段），
+            # 所以模型能把「第几帧该发哪个音」和 video latent 对上 -> 口型锁得住。
+            if slice_mode == "per_segment" and i < len(seg_audio_latents):
+                kf.append({"resolved_frame_index": 0,
+                           "audio_latent": seg_audio_latents[i]})
 
             # 段 i>0：把上段尾部 anchor 个 token 注入本段 frame_idx=0
             if prev_video is not None and prev_video.shape[2] > anchor_tokens:
                 tail = prev_video[:, :, -anchor_tokens:, :, :].clone()
-                kf = list(cond[0][1].get("minimax_keyframes", []))
                 kf.append({"resolved_frame_index": 0, "latent": tail})
+
+            if kf:
                 cond = node_helpers.conditioning_set_values(cond, {"minimax_keyframes": kf})
 
             # ================= 无 CFG 路径（NCG 版核心） =================
@@ -908,8 +1262,25 @@ class SW_H3MultiPrompt_NCG(io.ComfyNode):
         lines = [
             "================ SW H3 多段一体机 ================",
             "段数    : %d 段（来源：%s）%s"
-            % (n_seg, "auto 自动判定" if mode == "auto" else "手动锁定",
+            % (n_seg,
+               ("★ 自动时长规划（目标 %.2f 秒）" % _auto_dur) if auto_plan else
+               ("auto 自动判定" if mode == "auto" else "手动锁定"),
                ("  ⚠️ " + stop_reason) if stop_reason else ""),
+            "固定方案: %s"
+            % ("%d 段（%s 秒）→ 自然 %d 帧，成片裁到 %d 帧 = %.3fs（裁掉 %d 帧，音视频同步）%s"
+               % (n_seg,
+                  "+".join("%.1f" % s
+                           for s in (auto_plan["seg_seconds_list"] if auto_plan
+                                     else [seg_seconds] * n_seg)),
+                  (auto_plan or {}).get("natural_frames", total_frames),
+                  crop_target, crop_target / H3_FPS,
+                  max(0, (auto_plan or {}).get("natural_frames", total_frames) - crop_target),
+                  ("  ⚠️ 自然成片不足目标 %d 帧（%.2fs），请把目标调小或增加段数"
+                   % (auto_plan["shortfall_frames"],
+                      auto_plan["shortfall_frames"] / H3_FPS))
+                  if auto_plan and auto_plan["shortfall_frames"] else "")
+               if auto_plan else
+               "（未启用：目标总时长 = 0，沿用手动的 段数 / 每段秒数 / 裁剪到秒数）"),
             "每段    : %d 帧 / %.4f 秒（%.2fs 请求 → 吸附到 5+17n 网格）"
             % (seg_frames, seg_frames / H3_FPS, seg_seconds),
             "锚定    : %d 帧 = %d token（第 2 段起开头复刻上段末帧，拼接时丢弃）"
@@ -923,15 +1294,29 @@ class SW_H3MultiPrompt_NCG(io.ComfyNode):
             "每段保留: " + ", ".join("段%d %d token" % (i + 1, n) for i, n in enumerate(per_seg)),
             "合并后  : %d token → %d 帧 / %.4f 秒" % (total_tokens, real_frames, real_frames / H3_FPS),
             "网格校验: %s" % ("✅ 5c+2，与训练网格一致" if grid_ok else "⚠️ 偏离 5c+2"),
-            "参考资产: 图 %d 张 / 视频 %d 个（含音轨 %d） / 独立音频 %d 条（只编码 1 次，%d 段共用）"
+            "参考资产: 图 %d 张 / 视频 %d 个（含音轨 %d） / 独立音频 %d 条"
             % (ref_counts["image"], ref_counts["video"], ref_counts["video_audio"],
-               ref_counts["audio"], n_seg),
+               ref_counts["audio"]),
+            "音频对齐: %s"
+            % ("✅ 按段切分——每段只喂自己在成片里那一段原曲（cond_audio 贴 target 时间轴，口型逐帧对齐）"
+               if slice_mode == "per_segment" else
+               ("⚠️ 整首共享——所有段共用完整参考音频，段 2 以后模型不知道该唱原曲哪一段，"
+                "口型会漂（「按段切分参考音频」可开）" if slice_mode == "fallback_whole" else
+                "— 无参考音频（语音由模型从提示词生成）")),
             "采样    : %d 步 × %d 段，%s / %s，★无 CFG（cond 单路，负样本跳过），seed=%d%s"
             % (steps_i, n_seg, sampler_name, scheduler, seed0,
                "（逐段 +1）" if stride else "（全段同 seed）"),
             "显存    : CLIP 编码器已在采样前卸载（%s）"
             % ("已卸" if how != 0 else "未能定位，已尝试全卸"),
         ]
+        if slice_mode == "per_segment" and seg_audio_slices:
+            lines.insert(
+                lines.index("采样    : %d 步 × %d 段，%s / %s，★无 CFG（cond 单路，负样本跳过），seed=%d%s"
+                            % (steps_i, n_seg, sampler_name, scheduler, seed0,
+                               "（逐段 +1）" if stride else "（全段同 seed）")),
+                "段↔原曲: " + " | ".join(
+                    "段%d %.2f-%.2fs" % (i + 1, s["slice_window"][0], s["slice_window"][1])
+                    for i, s in enumerate(seg_audio_slices)))
         if do_decode:
             lines.append("输出    : IMAGE %d 帧 / %.4f 秒%s"
                          % (out_frames, out_seconds,
